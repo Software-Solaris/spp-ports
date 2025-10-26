@@ -6,20 +6,20 @@
 
 void app_main()
 {
-    retval_t ret;
-    void* p_dev;
+   //  retval_t ret;
+   //  void* p_dev;
 
-    ret = SPP_HAL_SPI_BusInit();
-    if (ret != SPP_OK) return;
+   //  ret = SPP_HAL_SPI_BusInit();
+   //  if (ret != SPP_OK) return;
 
-    for(int i = 0; i < MAX_DEVICES; i++)
-    {
-        p_dev = SPP_HAL_SPI_GetHandler();
-        if (p_dev == NULL) break;
+   //  for(int i = 0; i < MAX_DEVICES; i++)
+   //  {
+   //      p_dev = SPP_HAL_SPI_GetHandler();
+   //      if (p_dev == NULL) break;
 
-        ret = SPP_HAL_DeviceInit(p_dev);
-        if (ret == SPP_ERROR) break; 
-    }
+   //      ret = SPP_HAL_DeviceInit(p_dev);
+   //      if (ret == SPP_ERROR) break; 
+   //  }
 }
 
 /*
