@@ -16,7 +16,7 @@ static int device_state[MAX_DEVICES] = {EMPTY};
 
 //---Init---
 // Init del bus (comun)
-retval_t SPP_HAL_SPI_BusInit(void)
+SppRetVal_t SPP_HAL_SPI_BusInit(void)
 {
     esp_err_t ret;
 
@@ -50,7 +50,7 @@ void* SPP_HAL_SPI_GetHandler(void)
     return NULL;
 }
 
-retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
+SppRetVal_t SPP_HAL_SPI_DeviceInit(void* p_handler)
 { 
     if (p_handler == NULL) return SPP_ERROR;
 
@@ -106,7 +106,7 @@ retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
 }
 //---End Init---
 
-retval_t SPP_HAL_SPI_Transmit(void* handler, void* data_to_send, void* data_to_recieve, spp_uint8_t length) {
+SppRetVal_t SPP_HAL_SPI_Transmit(void* handler, void* data_to_send, void* data_to_recieve, spp_uint8_t length) {
     spi_device_handle_t p_handler = (spi_device_handle_t) handler;
     esp_err_t trans_result = ESP_OK;
 

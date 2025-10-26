@@ -6,7 +6,7 @@
 
 void app_main()
 {
-   //  retval_t ret;
+   //  SppRetVal_t ret;
    //  void* p_dev;
 
    //  ret = SPP_HAL_SPI_BusInit();
