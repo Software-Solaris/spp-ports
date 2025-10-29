@@ -18,7 +18,40 @@
     SPP_ERROR_INVALID_PARAMETER
 }retval_t; */
 
-// typedef void* osal_queue_handle_t;
+
+/**
+ * @brief Crea una nueva cola OSAL
+ * 
+ * @param queue_length Número máximo de elementos en la cola
+ * @param item_size Tamaño en bytes de cada elemento
+ * 
+ * @return Puntero void a handle de la cola creada
+ * @retval NULL si hubo error al crear la cola
+ * 
+ * @note El handle debe ser usado con las demás funciones OSAL
+ */
+void* SPP_OSAL_QueueCreate(uint32_t queue_length, uint32_t item_size)
+{
+    if (queue_length == 0 || item_size == 0) return NULL;
+
+    QueueHandle_t p_queue_handle = xQueueCreate(queue_length, item_size);
+    void* p_queue_handle_conv = (void*)p_queue_handle; // omitible no?
+
+    if (p_queue_handle_conv == NULL) return NULL;
+
+    return p_queue_handle_conv; // cambiar por: return (void*)p_queue_handle;
+}
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -50,8 +83,7 @@ void* GetQueueHandle()
     return p_queue_handle;
 }
 
-int* p
-*p = 22
+
 
 void* SPP_OSAL_QueueCreate(void* p_queue_handle, uint32_t queue_length, uint32_t item_size)
 {
@@ -61,16 +93,32 @@ void* SPP_OSAL_QueueCreate(void* p_queue_handle, uint32_t queue_length, uint32_t
 
     p_queue_handle_converted = xQueueCreate(queue_length, item_size); // ambos miembros son punteros, quieres meterle el contenido bueno
 
-        void* p_queue_handle_converted = (void*)p_queue;
+    void* p_queue_handle_converted2 = (void*)p_queue_handle_converted;
 
-    if (p1_queue_handle == NULL) return NULL;
+    if (p_queue_handle_converted2 == NULL) return NULL; // en el main haces un if NULL SPPEROR
 
-    void* p_queue_handle = (void*)p_queue;
-    return p_queue_handle;
+    return p_queue_handle_converted2;
 }
 
 
 
+// VERSION CORREGIDA DE AHORA
+
+
+void* SPP_OSAL_QueueCreate(uint32_t queue_length, uint32_t item_size)
+{
+    if (queue_length == 0 || item_size == 0) return -1;
+
+    QueueHandle_t p_queue_handle; // *???
+
+    p_queue_handle = xQueueCreate(queue_length, item_size); // ambos miembros son punteros, quieres meterle el contenido bueno
+
+    void* p_queue_handle_converted = (void*)p_queue_handle;
+
+    if (p_queue_handle_converted == NULL) return NULL; // en el main haces un if NULL SPPEROR
+
+    return p_queue_handle_converted;
+}
 
 
 
