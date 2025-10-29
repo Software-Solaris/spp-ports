@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "osal/queue.h"
 #include "core/types.h"
 #include "core/returntypes.h"
@@ -18,6 +19,109 @@
 }retval_t; */
 
 // typedef void* osal_queue_handle_t;
+
+
+
+
+void* GetQueueHandle()
+{
+    QueueHandle_t queue;
+    QueueHandle_t *p_queue = &queue;
+    void* p_queue_handle = (void*)p_queue;
+    return p_queue_handle;
+}
+
+int SPP_OSAL_QueueCreate(void* p_queue_handle, uint32_t queue_length, uint32_t item_size)
+{
+    QueueHandle_t* p_queue_handle_converted = (QueueHandle_t*)p_queue_handle;
+    QueueHandle_t queue = *p_queue_handle_converted;
+    return 1;
+}
+
+
+
+// ---------------------
+
+
+void* GetQueueHandle()
+{
+    QueueHandle_t p_queue;
+    void* p_queue_handle = (void*)p_queue;
+    return p_queue_handle;
+}
+
+int* p
+*p = 22
+
+void* SPP_OSAL_QueueCreate(void* p_queue_handle, uint32_t queue_length, uint32_t item_size)
+{
+    if (queue_length == 0 || item_size == 0) return -1;
+
+    QueueHandle_t p_queue_handle_converted = (QueueHandle_t)p_queue_handle; // *???
+
+    p_queue_handle_converted = xQueueCreate(queue_length, item_size); // ambos miembros son punteros, quieres meterle el contenido bueno
+
+        void* p_queue_handle_converted = (void*)p_queue;
+
+    if (p1_queue_handle == NULL) return NULL;
+
+    void* p_queue_handle = (void*)p_queue;
+    return p_queue_handle;
+}
+
+
+
+
+
+
+
+
+
+
+
+    QueueHandle_t* p_queue_handle_converted = (QueueHandle_t*)p_queue_handle;
+    QueueHandle_t queue = *p_queue_handle_converted;
+
+    if (p_queue_handle == NULL) return SPP_ERROR_NULL_POINTER; // In case NULL is passed as argument
+    if (queue_length == 0 || item_size == 0) return SPP_ERROR_INVALID_PARAMETER;
+
+    QueueHandle_t *p1_queue_handle = (QueueHandle_t*)p_queue_handle;
+
+    QueueHandle_t queue_handle = *p1_queue_handle;
+    queue_handle = xQueueCreate(queue_length, item_size);
+
+    // if (p1_queue_handle == NULL) return SPP_ERROR_NULL_POINTER;
+
+    // *queue_handle = (void*)p1_queue_handle;
+    return SPP_OK;
+}
+
+
+
+
+
+
+
+
+
+
+
+retval_t SPP_OSAL_QueueCreate(void* p_queue_handle, uint32_t queue_length, uint32_t item_size)
+{
+    if (p_queue_handle == NULL) return SPP_ERROR_NULL_POINTER; // In case NULL is passed as argument
+    if (queue_length == 0 || item_size == 0) return SPP_ERROR_INVALID_PARAMETER;
+
+    QueueHandle_t *p1_queue_handle = (QueueHandle_t*)p_queue_handle;
+
+    QueueHandle_t queue_handle = *p1_queue_handle;
+    queue_handle = xQueueCreate(queue_length, item_size);
+
+    // if (p1_queue_handle == NULL) return SPP_ERROR_NULL_POINTER;
+
+    // *queue_handle = (void*)p1_queue_handle;
+    return SPP_OK;
+}
+
 
 
 
