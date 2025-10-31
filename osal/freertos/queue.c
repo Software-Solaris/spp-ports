@@ -7,6 +7,7 @@
 #include "osal/queue.h"
 #include "core/types.h"
 #include "core/returntypes.h"
+#include "freertos/task.h"
 
 
 void* SPP_OSAL_QueueCreate(uint32_t queue_length, uint32_t item_size)
@@ -22,16 +23,24 @@ void* SPP_OSAL_QueueCreate(uint32_t queue_length, uint32_t item_size)
 }
 
 
+void* SPP_OSAL_QueueCreateStatic(uint32_t queue_length, uint32_t item_size, uint8_t* queue_storage, void* queue_buffer)
+{
+    if (queue_length == 0 || item_size == 0 || queue_buffer == 0) {
+        return NULL;
+    }
 
-//--------------FASE DE PRUEBAS--------------------
+    if (item_size > 0 && queue_storage == NULL) { // si item_size > 0, necesitamos storage válido
+        return NULL;
+    }
+
+    QueueHandle_t queue_handle = xQueueCreateStatic(queue_length, item_size, queue_storage, (StaticQueue_t*)queue_buffer);
+
+    if (queue_handle == NULL) return NULL;
+
+    return (void*)queue_handle;
+}
 
 
-/**
- * @brief Obtiene el número de elementos en cola
- * 
- * @param queue_handle Handle de la cola
- * @return uint32_t Número de elementos en cola
- */
 uint32_t SPP_OSAL_QueueMessagesWaiting(void* queue_handle)
 {
     if (queue_handle == NULL) return 0;
@@ -41,19 +50,3 @@ uint32_t SPP_OSAL_QueueMessagesWaiting(void* queue_handle)
 
     return queued_items;
 }
-
-
-//--------------BORRADORES--------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
