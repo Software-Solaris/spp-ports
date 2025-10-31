@@ -23,5 +23,37 @@ void* SPP_OSAL_QueueCreate(uint32_t queue_length, uint32_t item_size)
 
 
 
+//--------------FASE DE PRUEBAS--------------------
+
+
+/**
+ * @brief Obtiene el número de elementos en cola
+ * 
+ * @param queue_handle Handle de la cola
+ * @return uint32_t Número de elementos en cola
+ */
+uint32_t SPP_OSAL_QueueMessagesWaiting(void* queue_handle)
+{
+    if (queue_handle == NULL) return 0;
+
+    QueueHandle_t rtos_handle = (QueueHandle_t)queue_handle;
+    uint32_t queued_items = (uint32_t)uxQueueMessagesWaiting(rtos_handle);
+
+    return queued_items;
+}
+
+
+//--------------BORRADORES--------------------
+
+
+
+
+
+
+
+
+
+
+
 
 
