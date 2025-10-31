@@ -12,23 +12,29 @@
 #include "freertos/event_groups.h"
 #include "core/returntypes.h"
 #include "core/types.h"
+#include "core/macros.h"
 
 /**
  * @brief Create a new event group
  */
-retval_t OSAL_EventGroupCreate(osal_eventgroup_handle_t* event_group)
+retval_t OSAL_EventGroupCreate(void* p_event_group)
 {
-    if (event_group == NULL) {
+    if (p_event_group == NULL) {
         return SPP_ERROR_NULL_POINTER;
     }
     
-    EventGroupHandle_t new_event_group = xEventGroupCreate();
+    #ifdef STATIC
+        //Implement static method
+        EventGroupHandle_t new_event_group = NULL;
+    #else
+        EventGroupHandle_t new_event_group = xEventGroupCreate();
+    #endif
     if (new_event_group == NULL) {
-        *event_group = NULL;
+        p_event_group = NULL;
         return SPP_ERROR;
     }
     
-    *event_group = (osal_eventgroup_handle_t)new_event_group;
+    p_event_group = (void*)new_event_group;
     return SPP_OK;
 }
 
