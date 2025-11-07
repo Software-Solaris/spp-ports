@@ -1,0 +1,6 @@
+#ifndef MACROS_FREERTOS_H
+#define MACROS_FREERTOS_H
+
+#define NUM_EVENT_GROUPS   5
+
+#endif
