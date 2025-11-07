@@ -54,3 +54,9 @@ void* SPP_OSAL_TaskCreate(void *p_function, const char *const task_name,
     void* p_task_handle = (void*)p_task;
     return p_task_handle;
 }
+
+retval_t SPP_OSAL_TaskDelete(void *p_task){
+    TaskHandle_t *p_task_delete = (TaskHandle_t*)p_task;
+    vTaskDelete(*p_task_delete);
+    return SPP_OK;
+}
