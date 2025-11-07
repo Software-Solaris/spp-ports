@@ -4,25 +4,49 @@
 #include "core/types.h"
 #include "core/macros.h"
 
+#define MAX_TASKS   50   
+#define MAX_STACK   4096
+
+typedef struct {
+    StackType_t stack[MAX_STACK];
+    StaticTask_t buffer;
+} TaskStorage_t;
+
+static TaskStorage_t task_pool[MAX_TASKS];
+static uint32_t task_count = 0;
+
+
+void * SPP_OSAL_GetTaskStorage(){
+
+    if (task_count >= MAX_TASKS) {
+        return NULL;
+    }
+    TaskStorage_t* p_task_storage = &task_pool[task_count];
+    task_count += 1;
+    return p_task_storage;
+}
+
 
 void* SPP_OSAL_TaskCreate(void *p_function, const char *const task_name, 
                             const uint32_t stack_depth,void *const p_custom_data,
-                            spp_uint32_t priority, uint64_t stack_size)
+                            spp_uint32_t priority, void * p_storage)
 {
     if (p_function == NULL || task_name == NULL){
         return NULL;
     }
 
-    StackType_t xStack[stack_size];
-    StaticTask_t xTaskBuffer;
+    TaskStorage_t *p_task_storage = (TaskStorage_t*)p_storage;
+
+    StackType_t *xStack = p_task_storage->stack;
+    StaticTask_t *xTaskBuffer = &p_task_storage->buffer;
 
     TaskHandle_t p_task = xTaskCreateStatic((TaskFunction_t) p_function, 
                                             task_name, 
                                             stack_depth, 
                                             p_custom_data, 
                                             (UBaseType_t) priority, 
-                                            &xStack, 
-                                            &xTaskBuffer);
+                                            xStack, 
+                                            xTaskBuffer);
     if (p_task == NULL){
         return NULL;
     }
