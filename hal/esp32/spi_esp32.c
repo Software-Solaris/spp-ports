@@ -15,7 +15,6 @@ static spi_device_handle_t device_ids[MAX_DEVICES] = {NULL}; //[0]-BMP [1]-ICM
 static int device_state[MAX_DEVICES] = {EMPTY};
 
 //---Init---
-// Init del bus (comun)
 retval_t SPP_HAL_SPI_BusInit(void)
 {
     esp_err_t ret;
@@ -52,7 +51,7 @@ void* SPP_HAL_SPI_GetHandler(void)
 
 retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
 { 
-    if (p_handler == NULL) return SPP_ERROR;
+    if (p_handler == NULL) return SPP_ERROR_NULL_POINTER;
 
     spi_device_handle_t* p_handle = (spi_device_handle_t*)p_handler;
 
@@ -67,11 +66,9 @@ retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
         }   
     }
 
-    //if (*p_handle != NULL) return SPP_OK; // se xa estÃ¡ inicializado que o salte pero non pete
+    if (flag < 0) return SPP_ERROR_INVALID_PARAMETER;
 
-    if (flag < 0) return SPP_ERROR;
-
-    if (device_state[flag] == READY) return SPP_OK;
+    if (device_state[flag] == READY) return SPP_ERROR_ALREADY_INITIALIZED;
 
     spi_device_interface_config_t devcfg = {0};
 
@@ -106,6 +103,7 @@ retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
 }
 //---End Init---
 
+//---ESP32-specific message sender---
 retval_t SPP_HAL_SPI_Transmit(void* handler, void* data_to_send, void* data_to_recieve, spp_uint8_t length) {
     spi_device_handle_t p_handler = (spi_device_handle_t) handler;
     esp_err_t trans_result = ESP_OK;
@@ -145,7 +143,7 @@ retval_t SPP_HAL_SPI_Transmit(void* handler, void* data_to_send, void* data_to_r
     }
 
     if (trans_result != ESP_OK) {
-        return SPP_ERROR;
+        return SPP_ERROR_ON_SPI_TRANSACTION;
     }
     return SPP_OK;
 }
