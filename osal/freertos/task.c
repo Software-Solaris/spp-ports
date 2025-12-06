@@ -40,9 +40,11 @@ void* SPP_OSAL_TaskCreate(void *p_function, const char *const task_name,
     StackType_t *xStack = p_task_storage->stack;
     StaticTask_t *xTaskBuffer = &p_task_storage->buffer;
 
+    UBaseType_t real_stack_depth = sizeof(p_task_storage->stack) / sizeof(StackType_t);
+
     TaskHandle_t p_task = xTaskCreateStatic((TaskFunction_t) p_function, 
                                             task_name, 
-                                            stack_depth, 
+                                            real_stack_depth, 
                                             p_custom_data, 
                                             (UBaseType_t) priority, 
                                             xStack, 

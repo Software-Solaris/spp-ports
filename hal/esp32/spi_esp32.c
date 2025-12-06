@@ -36,7 +36,7 @@ retval_t SPP_HAL_SPI_BusInit(void)
     .max_transfer_sz = 4096
     };
 
-    ret = spi_bus_initialize(SPI_HOST_USED, &buscfg, SPI_DMA_CH_AUTO);
+    ret = spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK) return SPP_ERROR;
 
     return SPP_OK;
@@ -83,11 +83,11 @@ retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
         devcfg.dummy_bits    = 8;
     }
 
-    // esp_err_t ret = spi_bus_add_device(SPI_HOST_USED, &devcfg, p_handle);
-    // if (ret != ESP_OK) {
-    //     ESP_LOGE(TAG, "spi_bus_add_device fallo: %s", esp_err_to_name(ret));
-    //     return SPP_ERROR;
-    // }
+    esp_err_t ret = spi_bus_add_device(SPI2_HOST, &devcfg, p_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "spi_bus_add_device fallo: %s", esp_err_to_name(ret));
+        return SPP_ERROR;
+    }
 
     call_count++;
     return SPP_OK;
@@ -96,7 +96,7 @@ retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
 
 //---ESP32-specific message sender---
 retval_t SPP_HAL_SPI_Transmit(void* handler, spp_uint8_t* p_data, spp_uint8_t length) {
-    spi_device_handle_t p_handler = (spi_device_handle_t) handler;
+    spi_device_handle_t p_handler = *(spi_device_handle_t*) handler;
     esp_err_t trans_result = ESP_OK;
 
     if (length <= 2) {

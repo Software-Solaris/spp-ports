@@ -10,7 +10,7 @@
 #define USED_HOST SPI2_HOST
 
 #define CS_PIN_BMP 18
-#define CS_PIN_ICM 19
+#define CS_PIN_ICM 21
 #define MAX_DEVICES 4
 
 enum
