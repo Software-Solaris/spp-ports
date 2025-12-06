@@ -5,18 +5,25 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>
+#include <stdint.h>
 #include "macros_esp.h"
 
 static const char *TAG = "SPP_HAL_SPI";
 
-static int n_devices = 2;
+#define NUMBER_OF_DEVICES 2
 
-static spi_device_handle_t device_ids[MAX_DEVICES] = {NULL}; //[0]-BMP [1]-ICM
-static int device_state[MAX_DEVICES] = {EMPTY};
+static spi_device_handle_t spi_handler[NUMBER_OF_DEVICES]; 
+static int device_state[NUMBER_OF_DEVICES] = {EMPTY};
 
 //---Init---
 retval_t SPP_HAL_SPI_BusInit(void)
 {
+    static spp_bool_t already_initialized = false;
+    if (already_initialized == true){
+        /** Allow repeated calls so multiple drivers can ensure the bus exists. */
+        return SPP_OK;
+    }
+    already_initialized = true;
     esp_err_t ret;
 
     spi_bus_config_t buscfg = 
@@ -26,10 +33,10 @@ retval_t SPP_HAL_SPI_BusInit(void)
     .sclk_io_num     = CLK_PIN,
     .quadwp_io_num   = -1,
     .quadhd_io_num   = -1,
-    .max_transfer_sz = 0
+    .max_transfer_sz = 4096
     };
 
-    ret = spi_bus_initialize(USED_HOST, &buscfg, SPI_DMA_CH_AUTO);
+    ret = spi_bus_initialize(SPI_HOST_USED, &buscfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK) return SPP_ERROR;
 
     return SPP_OK;
@@ -37,74 +44,58 @@ retval_t SPP_HAL_SPI_BusInit(void)
 
 void* SPP_HAL_SPI_GetHandler(void)
 {
-    for (int i = 0; i < n_devices; ++i)
-    {
-        if (device_ids[i] == NULL)
-        {
-            void* p_dev = (void*)&device_ids[i];
-            return p_dev;
-        }
+    static spp_uint8_t i = 0;
+    if (i >= NUMBER_OF_DEVICES){
+        return NULL;
     }
 
-    return NULL;
+    return (void*)&spi_handler[i++];
 }
 
 retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
 { 
     if (p_handler == NULL) return SPP_ERROR_NULL_POINTER;
 
-    spi_device_handle_t* p_handle = (spi_device_handle_t*)p_handler;
+    static uint8_t call_count = 0;   // Cuenta cuántas veces se ha llamado
 
-    int flag = -1;
-
-    for (int j = 0; j < n_devices; ++j)
-    {
-        if (p_handle == &device_ids[j])
-        {
-            flag = j;
-            break;
-        }   
+    if (call_count >= 2) {
+        ESP_LOGE(TAG, "SPI ya configurado (llamada extra)");
+        return SPP_ERROR;
     }
 
-    if (flag < 0) return SPP_ERROR_INVALID_PARAMETER;
-
-    if (device_state[flag] == READY) return SPP_ERROR_ALREADY_INITIALIZED;
-
+    spi_device_handle_t *p_handle = (spi_device_handle_t*)p_handler;
     spi_device_interface_config_t devcfg = {0};
 
-    if (flag == 0) // BMP
-    {
-        devcfg.clock_speed_hz = 500 * 1000;
-        devcfg.mode           = 0;
-        devcfg.spics_io_num   = CS_PIN_BMP;
-        devcfg.queue_size     = 7;
-        devcfg.command_bits   = 8;
-        devcfg.dummy_bits     = 8;
-        devcfg.flags          = SPI_DEVICE_HALFDUPLEX;
-    } 
-    else if (flag == 1) // ICM
-    {         
+    if (call_count == 0) {   // 1ª llamada → ICM
         devcfg.clock_speed_hz = 1 * 1000 * 1000;
-        devcfg.mode           = 0;
+        devcfg.mode           = 3;
         devcfg.spics_io_num   = CS_PIN_ICM;
-        devcfg.queue_size     = 7;
-        devcfg.command_bits   = 0;
-        devcfg.dummy_bits     = 0;
-        devcfg.flags          = 0;
+        devcfg.queue_size     = 20;
+        devcfg.command_bits  = 0;
+        devcfg.dummy_bits    = 0;
+    } 
+    else {                   // 2ª llamada → BMP
+        devcfg.clock_speed_hz = 500 * 1000;
+        devcfg.mode           = 3;
+        devcfg.spics_io_num   = CS_PIN_BMP;
+        devcfg.queue_size     = 20;
+        devcfg.command_bits  = 8;
+        devcfg.dummy_bits    = 8;
     }
 
-    esp_err_t ret;
-    ret = spi_bus_add_device(USED_HOST, &devcfg, p_handle);
-    if (ret != ESP_OK) return SPP_ERROR;
+    // esp_err_t ret = spi_bus_add_device(SPI_HOST_USED, &devcfg, p_handle);
+    // if (ret != ESP_OK) {
+    //     ESP_LOGE(TAG, "spi_bus_add_device fallo: %s", esp_err_to_name(ret));
+    //     return SPP_ERROR;
+    // }
 
-    device_state[flag] = READY;
-
+    call_count++;
     return SPP_OK;
 }
 //---End Init---
 
 //---ESP32-specific message sender---
-retval_t SPP_HAL_SPI_Transmit(void* handler, void* data_to_send, void* data_to_recieve, spp_uint8_t length) {
+retval_t SPP_HAL_SPI_Transmit(void* handler, spp_uint8_t* p_data, spp_uint8_t length) {
     spi_device_handle_t p_handler = (spi_device_handle_t) handler;
     esp_err_t trans_result = ESP_OK;
 
@@ -112,15 +103,12 @@ retval_t SPP_HAL_SPI_Transmit(void* handler, void* data_to_send, void* data_to_r
         // Only one transmission
         spi_transaction_t trans_desc = {0};
         trans_desc.length    = 8 * length;
-        trans_desc.tx_buffer = data_to_send;
-        trans_desc.rx_buffer = data_to_recieve;
+        trans_desc.tx_buffer = p_data;
+        trans_desc.rx_buffer = p_data;
 
         trans_result = spi_device_transmit(p_handler, &trans_desc);
 
-    } else {
-        spp_uint8_t* p_tx = (spp_uint8_t*) data_to_send;
-        spp_uint8_t* p_rx = (spp_uint8_t*) data_to_recieve;
-        
+    } else {        
         int num_ops = length / 2;
         spi_transaction_t transactions[num_ops];
 
@@ -128,8 +116,8 @@ retval_t SPP_HAL_SPI_Transmit(void* handler, void* data_to_send, void* data_to_r
             spi_transaction_t* p_transaction = &transactions[i];
             *p_transaction = (spi_transaction_t){0}; //We put all the struct to zero
             p_transaction->length    = 16; 
-            p_transaction->tx_buffer = &p_tx[i * 2];
-            p_transaction->rx_buffer = &p_rx[i * 2];
+            p_transaction->tx_buffer = &p_data[i * 2];
+            p_transaction->rx_buffer = &p_data[i * 2];
 
             trans_result = spi_device_queue_trans(p_handler, p_transaction, portMAX_DELAY);
             if (trans_result != ESP_OK) break;
