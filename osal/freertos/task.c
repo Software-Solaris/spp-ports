@@ -62,3 +62,10 @@ retval_t SPP_OSAL_TaskDelete(void *p_task){
     vTaskDelete(*p_task_delete);
     return SPP_OK;
 }
+
+
+void SPP_OSAL_TaskDelay(spp_uint32_t blocktime_ms)
+{
+    vTaskDelay(pdMS_TO_TICKS(blocktime_ms));
+}
+
