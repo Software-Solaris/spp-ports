@@ -8,11 +8,6 @@
 
 #include "osal/eventgroups.h"
 
-typedef struct {
-    void*          event_group;
-    osal_eventbits_t bits;
-} spp_gpio_isr_ctx_t;
-
 static void gpio_internal_isr(void* arg)
 {
     spp_gpio_isr_ctx_t* ctx = (spp_gpio_isr_ctx_t*)arg;
