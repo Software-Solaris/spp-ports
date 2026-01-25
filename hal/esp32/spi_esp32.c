@@ -1,5 +1,5 @@
 #include "spi.h" 
-#include "esp_log.h" 
+#include "core/types.h"
 #include "driver/spi_common.h"
 #include "driver/spi_master.h"
 #include "freertos/FreeRTOS.h"
