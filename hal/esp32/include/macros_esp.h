@@ -11,6 +11,7 @@
 
 #define CS_PIN_BMP 18
 #define CS_PIN_ICM 21
+#define CS_PIN_SDC 5    // change to the correct GPIO
 #define MAX_DEVICES 4
 
 enum
