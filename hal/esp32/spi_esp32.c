@@ -33,10 +33,10 @@ retval_t SPP_HAL_SPI_BusInit(void)
     .sclk_io_num     = CLK_PIN,
     .quadwp_io_num   = -1,
     .quadhd_io_num   = -1,
-    .max_transfer_sz = 4096
+    .max_transfer_sz = 0
     };
 
-    ret = spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
+    ret = spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK) return SPP_ERROR;
 
     return SPP_OK;
@@ -68,7 +68,7 @@ retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
 
     if (call_count == 0) {   // 1ª llamada → ICM
         devcfg.clock_speed_hz = 1 * 1000 * 1000;
-        devcfg.mode           = 3;
+        devcfg.mode           = 0;
         devcfg.spics_io_num   = CS_PIN_ICM;
         devcfg.queue_size     = 20;
         devcfg.command_bits  = 0;
@@ -76,14 +76,14 @@ retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
     } 
     else {                   // 2ª llamada → BMP
         devcfg.clock_speed_hz = 500 * 1000;
-        devcfg.mode           = 3;
+        devcfg.mode           = 0;
         devcfg.spics_io_num   = CS_PIN_BMP;
-        devcfg.queue_size     = 20;
-        devcfg.command_bits  = 8;
-        devcfg.dummy_bits    = 8;
+        devcfg.queue_size     = 7;
+        devcfg.command_bits  = 0;
+        devcfg.dummy_bits    = 0;
     }
 
-    esp_err_t ret = spi_bus_add_device(SPI2_HOST, &devcfg, p_handle);
+    esp_err_t ret = spi_bus_add_device(SPI3_HOST, &devcfg, p_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "spi_bus_add_device fallo: %s", esp_err_to_name(ret));
         return SPP_ERROR;
