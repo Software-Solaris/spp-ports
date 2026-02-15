@@ -9,6 +9,7 @@
 #include "macros_esp.h"
 
 static const char *TAG = "SPP_HAL_SPI";
+static void* p_bmp_handler;
 
 #define NUMBER_OF_DEVICES 2
 
@@ -81,6 +82,7 @@ retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
         devcfg.queue_size     = 20;
         devcfg.command_bits  = 0;
         devcfg.dummy_bits    = 0;
+        p_bmp_handler = p_handler; 
     }
 
     {
@@ -118,7 +120,11 @@ retval_t SPP_HAL_SPI_Transmit(void* handler, spp_uint8_t* p_data, spp_uint8_t le
             trans_desc.length    = 8 * 3;
             trans_desc.tx_buffer = &p_data[i];
             trans_desc.rx_buffer = &p_data[i];
-            i += 3;
+            if (handler != p_bmp_handler){
+                i+=2;
+            }else{
+                i+=3;
+            }
         } else {
             /* Writing to registers */
             trans_desc.length    = 8 * 2;
