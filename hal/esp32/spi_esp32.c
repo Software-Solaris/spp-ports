@@ -36,7 +36,7 @@ retval_t SPP_HAL_SPI_BusInit(void)
     .max_transfer_sz = 0
     };
 
-    ret = spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO);
+    ret = spi_bus_initialize(USED_HOST, &buscfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK) return SPP_ERROR;
 
     return SPP_OK;
@@ -72,21 +72,23 @@ retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
         devcfg.spics_io_num   = CS_PIN_ICM;
         devcfg.queue_size     = 20;
         devcfg.command_bits  = 0;
-        devcfg.dummy_bits    = 0;
+        devcfg.dummy_bits    = 0;   
     } 
     else {                   // 2ª llamada → BMP
         devcfg.clock_speed_hz = 500 * 1000;
         devcfg.mode           = 0;
         devcfg.spics_io_num   = CS_PIN_BMP;
-        devcfg.queue_size     = 7;
+        devcfg.queue_size     = 20;
         devcfg.command_bits  = 0;
         devcfg.dummy_bits    = 0;
     }
 
-    esp_err_t ret = spi_bus_add_device(SPI3_HOST, &devcfg, p_handle);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "spi_bus_add_device fallo: %s", esp_err_to_name(ret));
-        return SPP_ERROR;
+    {
+        esp_err_t ret = spi_bus_add_device(USED_HOST, &devcfg, p_handle);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "spi_bus_add_device fallo: %s", esp_err_to_name(ret));
+            return SPP_ERROR;
+        }
     }
 
     call_count++;
@@ -96,16 +98,30 @@ retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
 
 //---ESP32-specific message sender---
 retval_t SPP_HAL_SPI_Transmit(void* handler, spp_uint8_t* p_data, spp_uint8_t length) {
+    if ((handler == NULL) || (p_data == NULL) || (length == 0u)) {
+        return SPP_ERROR_NULL_POINTER;
+    }
+
     spi_device_handle_t p_handler = *(spi_device_handle_t*) handler;
+    if (p_handler == NULL) {
+        return SPP_ERROR_NULL_POINTER;
+    }
+
     esp_err_t trans_result = ESP_OK;
 
-    if (length <= 2) {
+    if (length <= 3) {
         // Only one transmission
         spi_transaction_t trans_desc = {0};
-        trans_desc.length    = 8 * length;
-        trans_desc.tx_buffer = p_data;
-        trans_desc.rx_buffer = p_data;
-
+        if (p_data[0] & 0x80 ) {
+            /* Reading data */
+            trans_desc.length    = 8 * length;
+            trans_desc.tx_buffer = p_data;
+            trans_desc.rx_buffer = p_data;
+        } else {
+            /* Writing to registers */
+            trans_desc.length    = 8 * length;
+            trans_desc.tx_buffer = p_data;
+        }
         trans_result = spi_device_transmit(p_handler, &trans_desc);
 
     } else {        
@@ -131,6 +147,7 @@ retval_t SPP_HAL_SPI_Transmit(void* handler, spp_uint8_t* p_data, spp_uint8_t le
     }
 
     if (trans_result != ESP_OK) {
+        ESP_LOGE(TAG, "spi transaction fallo: %s", esp_err_to_name(trans_result));
         return SPP_ERROR_ON_SPI_TRANSACTION;
     }
     return SPP_OK;
