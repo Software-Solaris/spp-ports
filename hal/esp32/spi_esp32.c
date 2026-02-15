@@ -107,48 +107,28 @@ retval_t SPP_HAL_SPI_Transmit(void* handler, spp_uint8_t* p_data, spp_uint8_t le
         return SPP_ERROR_NULL_POINTER;
     }
 
-    esp_err_t trans_result = ESP_OK;
+    esp_err_t trans_result = ESP_OK;  
 
-    if (length <= 3) {
-        // Only one transmission
-        spi_transaction_t trans_desc = {0};
-        if (p_data[0] & 0x80 ) {
-            /* Reading data */
-            trans_desc.length    = 8 * length;
-            trans_desc.tx_buffer = p_data;
-            trans_desc.rx_buffer = p_data;
+    int i = 0;
+       
+    while (i < length){
+        spi_transaction_t trans_desc = { 0 };
+        if (p_data[i] & 0x80 ) {
+            /* Reading from registers */
+            trans_desc.length    = 8 * 3;
+            trans_desc.tx_buffer = &p_data[i];
+            trans_desc.rx_buffer = &p_data[i];
+            i += 3;
         } else {
             /* Writing to registers */
-            trans_desc.length    = 8 * length;
-            trans_desc.tx_buffer = p_data;
+            trans_desc.length    = 8 * 2;
+            trans_desc.tx_buffer = &p_data[i];
+            i += 2;
         }
         trans_result = spi_device_transmit(p_handler, &trans_desc);
-
-    } else {        
-        int num_ops = length / 2;
-        spi_transaction_t transactions[num_ops];
-
-        for (int i = 0; i < num_ops; i++) {
-            spi_transaction_t* p_transaction = &transactions[i];
-            *p_transaction = (spi_transaction_t){0}; //We put all the struct to zero
-            p_transaction->length    = 16; 
-            p_transaction->tx_buffer = &p_data[i * 2];
-            p_transaction->rx_buffer = &p_data[i * 2];
-
-            trans_result = spi_device_queue_trans(p_handler, p_transaction, portMAX_DELAY);
-            if (trans_result != ESP_OK) break;
+        if (trans_result != ESP_OK){
+            return trans_result;
         }
-
-        for (int i = 0; i < num_ops && trans_result == ESP_OK; i++) {
-            spi_transaction_t* ret_t;
-            trans_result = spi_device_get_trans_result(p_handler, &ret_t, portMAX_DELAY);
-            if (trans_result != ESP_OK) break;
-        }
-    }
-
-    if (trans_result != ESP_OK) {
-        ESP_LOGE(TAG, "spi transaction fallo: %s", esp_err_to_name(trans_result));
-        return SPP_ERROR_ON_SPI_TRANSACTION;
     }
     return SPP_OK;
 }
