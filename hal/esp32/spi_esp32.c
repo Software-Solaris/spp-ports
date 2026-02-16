@@ -117,12 +117,13 @@ retval_t SPP_HAL_SPI_Transmit(void* handler, spp_uint8_t* p_data, spp_uint8_t le
         spi_transaction_t trans_desc = { 0 };
         if (p_data[i] & 0x80 ) {
             /* Reading from registers */
-            trans_desc.length    = 8 * 3;
             trans_desc.tx_buffer = &p_data[i];
             trans_desc.rx_buffer = &p_data[i];
             if (handler != p_bmp_handler){
+                trans_desc.length    = 8 * 2;
                 i+=2;
             }else{
+                trans_desc.length    = 8 * 3;
                 i+=3;
             }
         } else {
