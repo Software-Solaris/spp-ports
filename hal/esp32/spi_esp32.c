@@ -9,6 +9,7 @@
 #include "macros_esp.h"
 
 static const char *TAG = "SPP_HAL_SPI";
+static void* p_bmp_handler;
 
 #define NUMBER_OF_DEVICES 2
 
@@ -33,10 +34,10 @@ retval_t SPP_HAL_SPI_BusInit(void)
     .sclk_io_num     = CLK_PIN,
     .quadwp_io_num   = -1,
     .quadhd_io_num   = -1,
-    .max_transfer_sz = 4096
+    .max_transfer_sz = 0
     };
 
-    ret = spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
+    ret = spi_bus_initialize(USED_HOST, &buscfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK) return SPP_ERROR;
 
     return SPP_OK;
@@ -68,25 +69,28 @@ retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
 
     if (call_count == 0) {   // 1ª llamada → ICM
         devcfg.clock_speed_hz = 1 * 1000 * 1000;
-        devcfg.mode           = 3;
+        devcfg.mode           = 0;
         devcfg.spics_io_num   = CS_PIN_ICM;
         devcfg.queue_size     = 20;
         devcfg.command_bits  = 0;
-        devcfg.dummy_bits    = 0;
+        devcfg.dummy_bits    = 0;   
     } 
     else {                   // 2ª llamada → BMP
         devcfg.clock_speed_hz = 500 * 1000;
-        devcfg.mode           = 3;
+        devcfg.mode           = 0;
         devcfg.spics_io_num   = CS_PIN_BMP;
         devcfg.queue_size     = 20;
-        devcfg.command_bits  = 8;
-        devcfg.dummy_bits    = 8;
+        devcfg.command_bits  = 0;
+        devcfg.dummy_bits    = 0;
+        p_bmp_handler = p_handler; 
     }
 
-    esp_err_t ret = spi_bus_add_device(SPI2_HOST, &devcfg, p_handle);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "spi_bus_add_device fallo: %s", esp_err_to_name(ret));
-        return SPP_ERROR;
+    {
+        esp_err_t ret = spi_bus_add_device(USED_HOST, &devcfg, p_handle);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "spi_bus_add_device fallo: %s", esp_err_to_name(ret));
+            return SPP_ERROR;
+        }
     }
 
     call_count++;
@@ -96,42 +100,41 @@ retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
 
 //---ESP32-specific message sender---
 retval_t SPP_HAL_SPI_Transmit(void* handler, spp_uint8_t* p_data, spp_uint8_t length) {
-    spi_device_handle_t p_handler = *(spi_device_handle_t*) handler;
-    esp_err_t trans_result = ESP_OK;
-
-    if (length <= 2) {
-        // Only one transmission
-        spi_transaction_t trans_desc = {0};
-        trans_desc.length    = 8 * length;
-        trans_desc.tx_buffer = p_data;
-        trans_desc.rx_buffer = p_data;
-
-        trans_result = spi_device_transmit(p_handler, &trans_desc);
-
-    } else {        
-        int num_ops = length / 2;
-        spi_transaction_t transactions[num_ops];
-
-        for (int i = 0; i < num_ops; i++) {
-            spi_transaction_t* p_transaction = &transactions[i];
-            *p_transaction = (spi_transaction_t){0}; //We put all the struct to zero
-            p_transaction->length    = 16; 
-            p_transaction->tx_buffer = &p_data[i * 2];
-            p_transaction->rx_buffer = &p_data[i * 2];
-
-            trans_result = spi_device_queue_trans(p_handler, p_transaction, portMAX_DELAY);
-            if (trans_result != ESP_OK) break;
-        }
-
-        for (int i = 0; i < num_ops && trans_result == ESP_OK; i++) {
-            spi_transaction_t* ret_t;
-            trans_result = spi_device_get_trans_result(p_handler, &ret_t, portMAX_DELAY);
-            if (trans_result != ESP_OK) break;
-        }
+    if ((handler == NULL) || (p_data == NULL) || (length == 0u)) {
+        return SPP_ERROR_NULL_POINTER;
     }
 
-    if (trans_result != ESP_OK) {
-        return SPP_ERROR_ON_SPI_TRANSACTION;
+    spi_device_handle_t p_handler = *(spi_device_handle_t*) handler;
+    if (p_handler == NULL) {
+        return SPP_ERROR_NULL_POINTER;
+    }
+
+    esp_err_t trans_result = ESP_OK;  
+
+    int i = 0;
+       
+    while (i < length){
+        spi_transaction_t trans_desc = { 0 };
+        if (p_data[i] & 0x80 ) {
+            /* Reading from registers */
+            trans_desc.length    = 8 * 3;
+            trans_desc.tx_buffer = &p_data[i];
+            trans_desc.rx_buffer = &p_data[i];
+            if (handler != p_bmp_handler){
+                i+=2;
+            }else{
+                i+=3;
+            }
+        } else {
+            /* Writing to registers */
+            trans_desc.length    = 8 * 2;
+            trans_desc.tx_buffer = &p_data[i];
+            i += 2;
+        }
+        trans_result = spi_device_transmit(p_handler, &trans_desc);
+        if (trans_result != ESP_OK){
+            return trans_result;
+        }
     }
     return SPP_OK;
 }
