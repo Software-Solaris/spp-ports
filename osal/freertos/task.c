@@ -57,11 +57,28 @@ void* SPP_OSAL_TaskCreate(void *p_function, const char *const task_name,
     return p_task_handle;
 }
 
-retval_t SPP_OSAL_TaskDelete(void *p_task){
-    TaskHandle_t *p_task_delete = (TaskHandle_t*)p_task;
-    vTaskDelete(*p_task_delete);
+retval_t SPP_OSAL_TaskDelete(void *p_task)
+{
+    if (p_task == NULL)
+    {
+        // Delete current task
+        vTaskDelete(NULL);
+        return SPP_OK;
+    }
+
+    TaskHandle_t task = *(TaskHandle_t*)p_task;
+
+    // If caller passed a NULL handle inside the pointer, delete current task
+    if (task == NULL)
+    {
+        vTaskDelete(NULL);
+        return SPP_OK;
+    }
+
+    vTaskDelete(task);
     return SPP_OK;
 }
+
 
 
 void SPP_OSAL_TaskDelay(spp_uint32_t blocktime_ms)
