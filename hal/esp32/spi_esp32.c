@@ -37,7 +37,7 @@ retval_t SPP_HAL_SPI_BusInit(void)
     .max_transfer_sz = 0
     };
 
-    ret = spi_bus_initialize(USED_HOST, &buscfg, SPI_DMA_CH_AUTO);
+    ret = spi_bus_initialize(USED_HOST, &buscfg, SPI_DMA_DISABLED);
     if (ret != ESP_OK) return SPP_ERROR;
 
     return SPP_OK;
@@ -103,38 +103,45 @@ retval_t SPP_HAL_SPI_Transmit(void* handler, spp_uint8_t* p_data, spp_uint8_t le
     if ((handler == NULL) || (p_data == NULL) || (length == 0u)) {
         return SPP_ERROR_NULL_POINTER;
     }
-
     spi_device_handle_t p_handler = *(spi_device_handle_t*) handler;
     if (p_handler == NULL) {
         return SPP_ERROR_NULL_POINTER;
     }
 
     esp_err_t trans_result = ESP_OK;  
-
     int i = 0;
-       
-    while (i < length){
+    while (i < length) {
         spi_transaction_t trans_desc = { 0 };
-        if (p_data[i] & 0x80 ) {
-            /* Reading from registers */
+        
+        if (p_data[i] & 0x80) {
+            /* Reading from registers - buffer separado para rx */
+            spp_uint8_t rx_buf[3] = {0};
             trans_desc.tx_buffer = &p_data[i];
-            trans_desc.rx_buffer = &p_data[i];
-            if (handler != p_bmp_handler){
-                trans_desc.length    = 8 * 2;
-                i+=2;
-            }else{
-                trans_desc.length    = 8 * 3;
-                i+=3;
+            trans_desc.rx_buffer = rx_buf;  // Buffer separado para evitar conflicto DMA
+
+            if (handler != p_bmp_handler) {
+                trans_desc.length = 8 * 2;
+                trans_result = spi_device_transmit(p_handler, &trans_desc);
+                if (trans_result != ESP_OK) return trans_result;
+                /* Sobreescribir el buffer original con lo recibido */
+                p_data[i+1] = rx_buf[1];
+                i += 2;
+            } else {
+                trans_desc.length = 8 * 3;
+                trans_result = spi_device_transmit(p_handler, &trans_desc);
+                if (trans_result != ESP_OK) return trans_result;
+                /* Sobreescribir el buffer original con lo recibido */
+                p_data[i+1] = rx_buf[1];
+                p_data[i+2] = rx_buf[2];
+                i += 3;
             }
         } else {
-            /* Writing to registers */
-            trans_desc.length    = 8 * 2;
+            /* Writing to registers - no necesita rx */
+            trans_desc.length = 8 * 2;
             trans_desc.tx_buffer = &p_data[i];
+            trans_result = spi_device_transmit(p_handler, &trans_desc);
+            if (trans_result != ESP_OK) return trans_result;
             i += 2;
-        }
-        trans_result = spi_device_transmit(p_handler, &trans_desc);
-        if (trans_result != ESP_OK){
-            return trans_result;
         }
     }
     return SPP_OK;
