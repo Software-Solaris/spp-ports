@@ -98,51 +98,46 @@ retval_t SPP_HAL_SPI_DeviceInit(void* p_handler)
 }
 //---End Init---
 
-//---ESP32-specific message sender---
-retval_t SPP_HAL_SPI_Transmit(void* handler, spp_uint8_t* p_data, spp_uint8_t length) {
-    if ((handler == NULL) || (p_data == NULL) || (length == 0u)) {
+retval_t SPP_HAL_SPI_Transmit(void* handler, spp_uint8_t* p_data, spp_uint8_t length)
+{
+    if ((handler == NULL) || (p_data == NULL) || (length == 0u))
+    {
         return SPP_ERROR_NULL_POINTER;
     }
+
     spi_device_handle_t p_handler = *(spi_device_handle_t*) handler;
-    if (p_handler == NULL) {
+    if (p_handler == NULL)
+    {
         return SPP_ERROR_NULL_POINTER;
     }
 
-    esp_err_t trans_result = ESP_OK;  
-    int i = 0;
-    while (i < length) {
-        spi_transaction_t trans_desc = { 0 };
-        
-        if (p_data[i] & 0x80) {
-            /* Reading from registers - buffer separado para rx */
-            spp_uint8_t rx_buf[3] = {0};
-            trans_desc.tx_buffer = &p_data[i];
-            trans_desc.rx_buffer = rx_buf;  // Buffer separado para evitar conflicto DMA
+    esp_err_t         trans_result = ESP_OK;
+    spi_transaction_t trans_desc   = { 0 };
 
-            if (handler != p_bmp_handler) {
-                trans_desc.length = 8 * 2;
-                trans_result = spi_device_transmit(p_handler, &trans_desc);
-                if (trans_result != ESP_OK) return trans_result;
-                /* Sobreescribir el buffer original con lo recibido */
-                p_data[i+1] = rx_buf[1];
-                i += 2;
-            } else {
-                trans_desc.length = 8 * 3;
-                trans_result = spi_device_transmit(p_handler, &trans_desc);
-                if (trans_result != ESP_OK) return trans_result;
-                /* Sobreescribir el buffer original con lo recibido */
-                p_data[i+1] = rx_buf[1];
-                p_data[i+2] = rx_buf[2];
-                i += 3;
-            }
-        } else {
-            /* Writing to registers - no necesita rx */
-            trans_desc.length = 8 * 2;
-            trans_desc.tx_buffer = &p_data[i];
-            trans_result = spi_device_transmit(p_handler, &trans_desc);
-            if (trans_result != ESP_OK) return trans_result;
-            i += 2;
+    if (p_data[0] & 0x80)
+    {
+        spp_uint8_t rx_buf[64] = { 0 };
+
+        trans_desc.length    = 8 * length;
+        trans_desc.tx_buffer = p_data;
+        trans_desc.rx_buffer = rx_buf;
+
+        trans_result = spi_device_transmit(p_handler, &trans_desc);
+        if (trans_result != ESP_OK) return (retval_t)trans_result;
+
+        for (spp_uint8_t i = 1; i < length; i++)
+        {
+            p_data[i] = rx_buf[i];
         }
     }
+    else
+    {
+        trans_desc.length    = 8 * length;
+        trans_desc.tx_buffer = p_data;
+
+        trans_result = spi_device_transmit(p_handler, &trans_desc);
+        if (trans_result != ESP_OK) return (retval_t)trans_result;
+    }
+
     return SPP_OK;
 }
