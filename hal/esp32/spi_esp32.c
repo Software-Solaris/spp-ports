@@ -109,32 +109,39 @@ retval_t SPP_HAL_SPI_Transmit(void* handler, spp_uint8_t* p_data, spp_uint8_t le
         return SPP_ERROR_NULL_POINTER;
     }
 
-    esp_err_t trans_result = ESP_OK;  
+    spi_transaction_t trans_desc = { 0 };
+    esp_err_t trans_result;
 
-    int i = 0;
-       
-    while (i < length){
-        spi_transaction_t trans_desc = { 0 };
-        if (p_data[i] & 0x80 ) {
-            /* Reading from registers */
-            trans_desc.length    = 8 * 3;
-            trans_desc.tx_buffer = &p_data[i];
-            trans_desc.rx_buffer = &p_data[i];
-            if (handler != p_bmp_handler){
-                i+=2;
-            }else{
-                i+=3;
-            }
-        } else {
-            /* Writing to registers */
-            trans_desc.length    = 8 * 2;
-            trans_desc.tx_buffer = &p_data[i];
-            i += 2;
-        }
+    if (p_data[0] & 0x80) {
+        /* Reading: one single SPI transaction (CS held low for all bytes).
+         * ICM: byte 0 = command, byte 1+ = data.
+         * BMP: byte 0 = command, byte 1 = dummy, byte 2+ = data.
+         * In both cases the whole buffer goes in one burst so that burst
+         * reads (e.g. 43-byte FIFO read) work correctly. */
+        spp_uint8_t rx_buf[64] = { 0 };
+
+        trans_desc.length    = 8 * length;
+        trans_desc.tx_buffer = p_data;
+        trans_desc.rx_buffer = rx_buf;
+
         trans_result = spi_device_transmit(p_handler, &trans_desc);
-        if (trans_result != ESP_OK){
-            return trans_result;
+        if (trans_result != ESP_OK) return (retval_t)trans_result;
+
+        /* Copy received bytes back.
+         * BMP needs to skip 1 extra dummy byte (data starts at [2]).
+         * ICM data starts at [1]. */
+        spp_uint8_t data_start = (handler == p_bmp_handler) ? 2u : 1u;
+        for (spp_uint8_t i = data_start; i < length; i++) {
+            p_data[i] = rx_buf[i];
         }
+    } else {
+        /* Writing: one single SPI transaction. */
+        trans_desc.length    = 8 * length;
+        trans_desc.tx_buffer = p_data;
+
+        trans_result = spi_device_transmit(p_handler, &trans_desc);
+        if (trans_result != ESP_OK) return (retval_t)trans_result;
     }
+
     return SPP_OK;
 }
