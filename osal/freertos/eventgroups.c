@@ -1,326 +1,205 @@
 /**
  * @file eventgroups.c
- * @brief OSAL Event Groups FreeRTOS Implementation
- * @version 1.0.0
- * @date 2024
- * 
- * This file provides the FreeRTOS implementation of event groups functions.
+ * @brief FreeRTOS OSAL event groups implementation for the SPP framework.
+ *
+ * Provides static event group creation, ISR-safe bit setting, and blocking
+ * bit wait operations using FreeRTOS event group primitives.
  */
 
-#include "osal/eventgroups.h"
+/* ============================================================================
+ * Includes
+ * ========================================================================= */
+
+#include "spp/osal/eventgroups.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
-#include "core/returntypes.h"
-#include "core/types.h"
-#include "core/macros.h"
+#include "spp/core/returntypes.h"
+#include "spp/core/types.h"
+#include "spp/core/macros.h"
 #include "macros_freertos.h"
 
-StaticEventGroup_t xEventGroupBuffers[NUM_EVENT_GROUPS];
+/* ============================================================================
+ * Private Variables
+ * ========================================================================= */
 
-static spp_uint8_t counter = 0;
+/** @brief Static storage for FreeRTOS event group buffers. */
+static StaticEventGroup_t s_eventGroupBuffers[NUM_EVENT_GROUPS];
 
-void* SPP_OSAL_GetEventGroupsBuffer(){
-    if (counter >= NUM_EVENT_GROUPS){
+/** @brief Number of event group buffers currently allocated. */
+static spp_uint8_t s_counter = 0;
+
+/* ============================================================================
+ * Public Functions
+ * ========================================================================= */
+
+/**
+ * @brief Allocate an event group buffer from the static pool.
+ *
+ * Each call returns the next available StaticEventGroup_t from
+ * s_eventGroupBuffers.
+ *
+ * @return Pointer to the allocated buffer, or NULL if the pool is exhausted.
+ */
+void *SPP_OSAL_GetEventGroupsBuffer()
+{
+    if (s_counter >= NUM_EVENT_GROUPS)
+    {
         return NULL;
     }
-    StaticEventGroup_t *p_buffer = &xEventGroupBuffers[counter];
-    counter += 1;
-    void* p_buffer_event_group = (void*)p_buffer;
-    return p_buffer_event_group;
+    StaticEventGroup_t *p_buffer = &s_eventGroupBuffers[s_counter];
+    s_counter += 1;
+    void *p_bufferEventGroup = (void *)p_buffer;
+    return p_bufferEventGroup;
 }
 
 /**
- * @brief Create a new event group
+ * @brief Create a new event group.
+ *
+ * In static mode (STATIC defined), uses xEventGroupCreateStatic with the
+ * provided buffer. In dynamic mode, the buffer is ignored and
+ * xEventGroupCreate is used instead.
+ *
+ * @param[in] p_eventGroupBuffer Pointer to a StaticEventGroup_t buffer
+ *                               (used only in static allocation mode).
+ * @return Event group handle as void pointer, or NULL on failure.
  */
-void* SPP_OSAL_EventGroupCreate(void* event_group_buffer)
+void *SPP_OSAL_EventGroupCreate(void *p_eventGroupBuffer)
 {
 #ifdef STATIC
-    EventGroupHandle_t eg = xEventGroupCreateStatic((StaticEventGroup_t*)event_group_buffer);
+    EventGroupHandle_t eg = xEventGroupCreateStatic((StaticEventGroup_t *)p_eventGroupBuffer);
 #else
-    (void)event_group_buffer; // no se usa en modo dinámico
+    (void)p_eventGroupBuffer; /* Unused in dynamic mode */
     EventGroupHandle_t eg = xEventGroupCreate();
 #endif
 
-    if (eg == NULL) return NULL;
-    return (void*)eg;
+    if (eg == NULL)
+        return NULL;
+    return (void *)eg;
 }
 
-retval_t OSAL_EventGroupSetBitsFromISR(void* event_group,
-                                      osal_eventbits_t bits_to_set,
-                                      osal_eventbits_t* previous_bits,
-                                      spp_uint8_t* higher_priority_task_woken)
+/**
+ * @brief Set bits in an event group from ISR context.
+ *
+ * Wraps xEventGroupSetBitsFromISR and converts the FreeRTOS result to
+ * SPP return types.
+ *
+ * @param[in]  p_eventGroup             Event group handle.
+ * @param[in]  bits_to_set              Bits to set in the event group.
+ * @param[out] p_previousBits           Receives previous bit values (set to 0;
+ *                                      not fully supported by FreeRTOS ISR API).
+ * @param[out] p_higherPriorityTaskWoken Set to 1 if a higher-priority task was
+ *                                      woken, 0 otherwise.
+ * @return SPP_OK on success, SPP_ERROR if the set operation failed.
+ */
+retval_t OSAL_EventGroupSetBitsFromISR(void *p_eventGroup, osal_eventbits_t bits_to_set,
+                                       osal_eventbits_t *p_previousBits,
+                                       spp_uint8_t *p_higherPriorityTaskWoken)
 {
-    EventGroupHandle_t eg = (EventGroupHandle_t)event_group;
+    EventGroupHandle_t eg = (EventGroupHandle_t)p_eventGroup;
 
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    BaseType_t result = xEventGroupSetBitsFromISR(
-        eg,
-        (EventBits_t)bits_to_set,
-        &xHigherPriorityTaskWoken
-    );
+    BaseType_t result =
+        xEventGroupSetBitsFromISR(eg, (EventBits_t)bits_to_set, &xHigherPriorityTaskWoken);
 
-    if (previous_bits != NULL) {
-        *previous_bits = 0;
+    if (p_previousBits != NULL)
+    {
+        *p_previousBits = 0;
     }
 
-    if (higher_priority_task_woken != NULL) {
-        if (xHigherPriorityTaskWoken == pdTRUE) {
-            *higher_priority_task_woken = 1;
-        } else {
-            *higher_priority_task_woken = 0;
+    if (p_higherPriorityTaskWoken != NULL)
+    {
+        if (xHigherPriorityTaskWoken == pdTRUE)
+        {
+            *p_higherPriorityTaskWoken = 1;
+        }
+        else
+        {
+            *p_higherPriorityTaskWoken = 0;
         }
     }
 
-    if (result == pdPASS) {
+    if (result == pdPASS)
+    {
         return SPP_OK;
     }
 
     return SPP_ERROR;
 }
 
-retval_t OSAL_EventGroupWaitBits(void* event_group,
-                                 osal_eventbits_t bits_to_wait,
-                                 spp_uint8_t clear_on_exit,
-                                 spp_uint8_t wait_for_all_bits,
-                                 spp_uint32_t timeout_ms,
-                                 osal_eventbits_t* actual_bits)
+/**
+ * @brief Wait for bits to be set in an event group.
+ *
+ * Blocks the calling task until the requested bits are set or the timeout
+ * expires. Supports both wait-for-all and wait-for-any semantics.
+ *
+ * @param[in]  p_eventGroup     Event group handle.
+ * @param[in]  bits_to_wait     Bit mask to wait on.
+ * @param[in]  clear_on_exit    Non-zero to clear matched bits on return.
+ * @param[in]  wait_for_all_bits Non-zero to require all bits, zero for any.
+ * @param[in]  timeout_ms       Maximum wait time in milliseconds (0 = no wait).
+ * @param[out] p_actualBits     Receives the actual event bits at return time
+ *                              (may be NULL).
+ * @return SPP_OK if the requested bits were set, SPP_ERROR on timeout.
+ */
+retval_t OSAL_EventGroupWaitBits(void *p_eventGroup, osal_eventbits_t bits_to_wait,
+                                 spp_uint8_t clear_on_exit, spp_uint8_t wait_for_all_bits,
+                                 spp_uint32_t timeout_ms, osal_eventbits_t *p_actualBits)
 {
-    EventGroupHandle_t eg = (EventGroupHandle_t)event_group;
-    TickType_t timeout_ticks;
-    BaseType_t wait_all;
-    BaseType_t clear_on_exit_flag;
+    EventGroupHandle_t eg = (EventGroupHandle_t)p_eventGroup;
+    TickType_t timeoutTicks;
+    BaseType_t waitAll;
+    BaseType_t clearOnExitFlag;
     EventBits_t result;
 
-    if (timeout_ms == 0) {
-        timeout_ticks = 0;
-    } else {
-        timeout_ticks = pdMS_TO_TICKS(timeout_ms);
+    if (timeout_ms == 0)
+    {
+        timeoutTicks = 0;
+    }
+    else
+    {
+        timeoutTicks = pdMS_TO_TICKS(timeout_ms);
     }
 
-    if (wait_for_all_bits != 0) {
-        wait_all = pdTRUE;
-    } else {
-        wait_all = pdFALSE;
+    if (wait_for_all_bits != 0)
+    {
+        waitAll = pdTRUE;
+    }
+    else
+    {
+        waitAll = pdFALSE;
     }
 
-    if (clear_on_exit != 0) {
-        clear_on_exit_flag = pdTRUE;
-    } else {
-        clear_on_exit_flag = pdFALSE;
+    if (clear_on_exit != 0)
+    {
+        clearOnExitFlag = pdTRUE;
+    }
+    else
+    {
+        clearOnExitFlag = pdFALSE;
     }
 
-    result = xEventGroupWaitBits(
-        eg,
-        (EventBits_t)bits_to_wait,
-        clear_on_exit_flag,
-        wait_all,
-        timeout_ticks
-    );
+    result =
+        xEventGroupWaitBits(eg, (EventBits_t)bits_to_wait, clearOnExitFlag, waitAll, timeoutTicks);
 
-    if (actual_bits != NULL) {
-        *actual_bits = (osal_eventbits_t)result;
+    if (p_actualBits != NULL)
+    {
+        *p_actualBits = (osal_eventbits_t)result;
     }
 
-    if (wait_for_all_bits != 0) {
-        if ((result & bits_to_wait) == bits_to_wait) {
+    if (wait_for_all_bits != 0)
+    {
+        if ((result & bits_to_wait) == bits_to_wait)
+        {
             return SPP_OK;
         }
-    } else {
-        if ((result & bits_to_wait) != 0) {
+    }
+    else
+    {
+        if ((result & bits_to_wait) != 0)
+        {
             return SPP_OK;
         }
     }
 
     return SPP_ERROR;
 }
-
-
-// /**
-//  * @brief Set bits in an event group
-//  */
-// retval_t OSAL_EventGroupSetBits(osal_eventgroup_handle_t event_group, 
-//                                osal_eventbits_t bits_to_set,
-//                                osal_eventbits_t* previous_bits)
-// {
-//     if (event_group == NULL) {
-//         return SPP_ERROR_NULL_POINTER;
-//     }
-    
-//     EventGroupHandle_t eg = (EventGroupHandle_t)event_group;
-//     EventBits_t previous = xEventGroupSetBits(eg, bits_to_set);
-    
-//     if (previous_bits != NULL) {
-//         *previous_bits = previous;
-//     }
-    
-//     return SPP_OK;
-// }
-
-// /**
-//  * @brief Set bits in an event group from ISR
-//  */
-// retval_t OSAL_EventGroupSetBitsFromISR(osal_eventgroup_handle_t event_group,
-//                                       osal_eventbits_t bits_to_set,
-//                                       osal_eventbits_t* previous_bits,
-//                                       spp_uint8_t* higher_priority_task_woken)
-// {
-//     if (event_group == NULL) {
-//         return SPP_ERROR_NULL_POINTER;
-//     }
-    
-//     EventGroupHandle_t eg = (EventGroupHandle_t)event_group;
-//     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-//     BaseType_t result = xEventGroupSetBitsFromISR(eg, bits_to_set, &xHigherPriorityTaskWoken);
-    
-//     if (previous_bits != NULL) {
-//         *previous_bits = result;
-//     }
-    
-//     if (higher_priority_task_woken != NULL) {
-//         *higher_priority_task_woken = (xHigherPriorityTaskWoken == pdTRUE) ? 1 : 0;
-//     }
-    
-//     return SPP_OK;
-// }
-
-// /**
-//  * @brief Wait for bits to be set in an event group
-//  */
-// retval_t OSAL_EventGroupWaitBits(osal_eventgroup_handle_t event_group,
-//                                 osal_eventbits_t bits_to_wait,
-//                                 spp_uint8_t clear_on_exit,
-//                                 spp_uint8_t wait_for_all_bits,
-//                                 spp_uint32_t timeout_ms,
-//                                 osal_eventbits_t* actual_bits)
-// {
-//     if (event_group == NULL) {
-//         return SPP_ERROR_NULL_POINTER;
-//     }
-    
-//     if (actual_bits == NULL) {
-//         return SPP_ERROR_NULL_POINTER;
-//     }
-    
-//     EventGroupHandle_t eg = (EventGroupHandle_t)event_group;
-//     TickType_t timeout_ticks = (timeout_ms == 0) ? 0 : pdMS_TO_TICKS(timeout_ms);
-    
-//     BaseType_t wait_all = (wait_for_all_bits != 0) ? pdTRUE : pdFALSE;
-//     BaseType_t clear_on_exit_flag = (clear_on_exit != 0) ? pdTRUE : pdFALSE;
-    
-//     EventBits_t result = xEventGroupWaitBits(eg, bits_to_wait, clear_on_exit_flag, wait_all, timeout_ticks);
-    
-//     *actual_bits = result;
-    
-//     if ((result & bits_to_wait) != 0) {
-//         return SPP_OK;
-//     } else {
-//         return SPP_ERROR;
-//     }
-// }
-
-// /**
-//  * @brief Synchronize tasks using event group
-//  */
-// retval_t OSAL_EventGroupSync(osal_eventgroup_handle_t event_group,
-//                             osal_eventbits_t bits_to_set,
-//                             osal_eventbits_t bits_to_wait,
-//                             spp_uint32_t timeout_ms,
-//                             osal_eventbits_t* achieved_bits)
-// {
-//     if (event_group == NULL) {
-//         return SPP_ERROR_NULL_POINTER;
-//     }
-    
-//     if (achieved_bits == NULL) {
-//         return SPP_ERROR_NULL_POINTER;
-//     }
-    
-//     EventGroupHandle_t eg = (EventGroupHandle_t)event_group;
-//     TickType_t timeout_ticks = (timeout_ms == 0) ? 0 : pdMS_TO_TICKS(timeout_ms);
-    
-//     EventBits_t result = xEventGroupSync(eg, bits_to_set, bits_to_wait, timeout_ticks);
-    
-//     *achieved_bits = result;
-    
-//     if ((result & bits_to_wait) != 0) {
-//         return SPP_OK;
-//     } else {
-//         return SPP_ERROR;
-//     }
-// }
-
-// /**
-//  * @brief Clear bits in an event group
-//  */
-// retval_t OSAL_EventGroupClearBits(osal_eventgroup_handle_t event_group,
-//                                  osal_eventbits_t bits_to_clear,
-//                                  osal_eventbits_t* previous_bits)
-// {
-//     if (event_group == NULL) {
-//         return SPP_ERROR_NULL_POINTER;
-//     }
-    
-//     EventGroupHandle_t eg = (EventGroupHandle_t)event_group;
-//     EventBits_t previous = xEventGroupClearBits(eg, bits_to_clear);
-    
-//     if (previous_bits != NULL) {
-//         *previous_bits = previous;
-//     }
-    
-//     return SPP_OK;
-// }
-
-// /**
-//  * @brief Get the current bits of an event group
-//  */
-// retval_t OSAL_EventGroupGetBits(osal_eventgroup_handle_t event_group,
-//                                osal_eventbits_t* current_bits)
-// {
-//     if (event_group == NULL) {
-//         return SPP_ERROR_NULL_POINTER;
-//     }
-    
-//     if (current_bits == NULL) {
-//         return SPP_ERROR_NULL_POINTER;
-//     }
-    
-//     EventGroupHandle_t eg = (EventGroupHandle_t)event_group;
-//     *current_bits = xEventGroupGetBits(eg);
-    
-//     return SPP_OK;
-// }
-
-// /**
-//  * @brief Get the current bits of an event group from ISR
-//  */
-// retval_t OSAL_EventGroupGetBitsFromISR(osal_eventgroup_handle_t event_group,
-//                                       osal_eventbits_t* current_bits)
-// {
-//     if (event_group == NULL) {
-//         return SPP_ERROR_NULL_POINTER;
-//     }
-    
-//     if (current_bits == NULL) {
-//         return SPP_ERROR_NULL_POINTER;
-//     }
-    
-//     EventGroupHandle_t eg = (EventGroupHandle_t)event_group;
-//     *current_bits = xEventGroupGetBitsFromISR(eg);
-    
-//     return SPP_OK;
-// }
-
-// /**
-//  * @brief Delete an event group
-//  */
-// retval_t OSAL_EventGroupDelete(osal_eventgroup_handle_t event_group)
-// {
-//     if (event_group == NULL) {
-//         return SPP_ERROR_NULL_POINTER;
-//     }
-    
-//     EventGroupHandle_t eg = (EventGroupHandle_t)event_group;
-//     vEventGroupDelete(eg);
-    
-//     return SPP_OK;
-// }
