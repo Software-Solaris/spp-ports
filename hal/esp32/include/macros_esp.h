@@ -41,11 +41,7 @@
 
 /** @brief ICM20948 IMU chip select GPIO pin. */
 #define CS_PIN_ICM 21
-
-/** @brief SD card chip select GPIO pin. */
-#define CS_PIN_SDC 5
-
-/** @brief Maximum number of SPI devices supported. */
+#define CS_PIN_SDC 8    // change to the correct GPIO
 #define MAX_DEVICES 4
 
 /* ============================================================================
